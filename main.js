@@ -1,0 +1,94 @@
+// main.js
+const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const path = require("path");
+const { exec } = require("child_process");
+
+// REQUIRED for correct Windows taskbar & pinned icon
+app.setAppUserModelId("com.yourname.gamemanager");
+
+const isDev = !app.isPackaged;
+
+function createWindow() {
+  const win = new BrowserWindow({
+    width: 1300,
+    height: 900,
+
+    // Window title (kills "React App")
+    title: "Game Manager",
+
+    // Runtime + taskbar icon
+    icon: path.join(__dirname, "assets", "icon.ico"),
+
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  if (isDev) {
+    win.loadURL("http://localhost:3000");
+  } else {
+    win.loadFile(path.join(__dirname, "build", "index.html"));
+  }
+
+  // Force title after load (Windows sometimes overrides)
+  win.webContents.once("did-finish-load", () => {
+    win.setTitle("Game Manager");
+  });
+}
+
+/*
+|--------------------------------------------------------------------------
+| GENERIC COMMAND LAUNCHER
+|--------------------------------------------------------------------------
+*/
+ipcMain.handle("launch-game", async (_evt, command) => {
+  console.log("Launching via Electron (launch-game):", command);
+
+  return new Promise((resolve) => {
+    exec(command, { shell: "cmd.exe", windowsHide: false }, (err, stdout, stderr) => {
+      if (stdout) console.log("stdout:", stdout);
+      if (stderr) console.log("stderr:", stderr);
+
+      if (err) {
+        resolve({
+          ok: false,
+          error: String(err),
+          stderr: String(stderr || ""),
+        });
+      } else {
+        resolve({ ok: true });
+      }
+    });
+  });
+});
+
+/*
+|--------------------------------------------------------------------------
+| PCSX2 DIRECT LAUNCHER
+|--------------------------------------------------------------------------
+*/
+ipcMain.handle("launch-pcsx2", async (_evt, exePath) => {
+  console.log("Launching PCSX2:", exePath);
+
+  const result = await shell.openPath(exePath);
+
+  if (result) {
+    return { ok: false, error: result };
+  }
+
+  return { ok: true };
+});
+
+app.whenReady().then(() => {
+  createWindow();
+
+  app.on("activate", () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+});
+
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") app.quit();
+});
