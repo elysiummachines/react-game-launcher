@@ -1,6 +1,115 @@
-import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+// src/App.js
+import { useEffect, useMemo, useState } from "react";
 import { paths } from "./config";
+
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+
+import { CSS } from "@dnd-kit/utilities";
+import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
+
+function SortableGameRow({ game, onPlay, onRemove }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: String(game.id),
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.85 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex justify-between items-center bg-gray-700 px-4 py-2 mb-2 rounded-lg select-none"
+    >
+      <div className="flex items-start gap-3 text-left min-w-0">
+        <button
+          type="button"
+          className="text-gray-300 hover:text-white mt-1"
+          title="Drag to reorder"
+          {...attributes}
+          {...listeners}
+        >
+          ☰
+        </button>
+
+        <div className="min-w-0">
+          <p className="font-medium truncate">{game.name}</p>
+          {game.lastPlayed && (
+            <p className="text-sm text-gray-400">Last Played: {game.lastPlayed}</p>
+          )}
+        </div>
+      </div>
+
+      <div className="flex gap-2 shrink-0">
+        <button
+          onClick={onPlay}
+          className="text-green-400 hover:text-green-600 font-semibold"
+          title="Launch"
+        >
+          ▶
+        </button>
+        <button
+          onClick={onRemove}
+          className="text-red-400 hover:text-red-600 font-semibold"
+          title="Remove"
+        >
+          ✕
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ReorderableList({ items, setItems, renderRow }) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const ids = useMemo(() => items.map((x) => String(x.id)), [items]);
+
+  const onDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = ids.indexOf(String(active.id));
+    const newIndex = ids.indexOf(String(over.id));
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    setItems((prev) => arrayMove(prev, oldIndex, newIndex));
+  };
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={onDragEnd}
+      modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+    >
+      <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+        {items.map(renderRow)}
+      </SortableContext>
+    </DndContext>
+  );
+}
 
 export default function App() {
   // ---------- STATE ----------
@@ -122,7 +231,6 @@ export default function App() {
   // ---------- LAUNCH ----------
   const launchSteamGame = (game) => {
     window.location.href = `steam://rungameid/${game.steamId}`;
-
     setSteamGames((prev) =>
       prev.map((g) => (g.id === game.id ? { ...g, lastPlayed: new Date().toLocaleString() } : g))
     );
@@ -132,7 +240,6 @@ export default function App() {
     if (!ensureElectronGame()) return;
 
     const command = `"${paths.gog}" /command=runGame /gameId=${game.gogId}`;
-    console.log("Launching GOG game:", command);
     window.electronAPI.launchGame(command);
 
     setGogGames((prev) =>
@@ -144,7 +251,6 @@ export default function App() {
     if (!ensureElectronGame()) return;
 
     const command = `"${paths.pcsx2}" "${game.isoPath}"`;
-    console.log("Launching PCSX2 (with ISO):", command);
     window.electronAPI.launchGame(command);
 
     setPcsx2Games((prev) =>
@@ -154,33 +260,25 @@ export default function App() {
 
   const launchPcsx2Only = () => {
     if (!ensureElectronPCSX2()) return;
-    console.log("Launching PCSX2 only:", paths.pcsx2);
     window.electronAPI.launchPCSX2(paths.pcsx2);
   };
 
-  // RPCS3: launch emulator only
   const launchRpcs3Only = () => {
     if (!ensureElectronGame()) return;
     const command = `"${paths.rpcs3}"`;
-    console.log("Launching RPCS3:", command);
     window.electronAPI.launchGame(command);
   };
 
-  // RPCS3: launch a game by passing a boot path
-  // (Works for typical folder-based games: ...\PS3_GAME or the game folder itself depending on your layout)
   const launchRpcs3Game = (game) => {
-  if (!ensureElectronGame()) return;
+    if (!ensureElectronGame()) return;
 
-  const command = `"${paths.rpcs3}" --no-gui "${game.gamePath}"`;
-  console.log("Launching RPCS3 game:", command);
-  window.electronAPI.launchGame(command);
+    const command = `"${paths.rpcs3}" --no-gui "${game.gamePath}"`;
+    window.electronAPI.launchGame(command);
 
-  setRpcs3Games((prev) =>
-    prev.map((g) =>
-      g.id === game.id ? { ...g, lastPlayed: new Date().toLocaleString() } : g
-    )
-  );
-};
+    setRpcs3Games((prev) =>
+      prev.map((g) => (g.id === game.id ? { ...g, lastPlayed: new Date().toLocaleString() } : g))
+    );
+  };
 
   // ---------- REMOVE ----------
   const removeSteamGame = (id) => setSteamGames((prev) => prev.filter((g) => g.id !== id));
@@ -228,45 +326,22 @@ export default function App() {
             </button>
           </div>
 
-          <AnimatePresence>
-            {rpcs3Games.length === 0 ? (
-              <p className="text-gray-400 text-center">No RPCS3 games added yet.</p>
-            ) : (
-              rpcs3Games.map((game) => (
-                <motion.div
+          {rpcs3Games.length === 0 ? (
+            <p className="text-gray-400 text-center">No RPCS3 games added yet.</p>
+          ) : (
+            <ReorderableList
+              items={rpcs3Games}
+              setItems={setRpcs3Games}
+              renderRow={(game) => (
+                <SortableGameRow
                   key={game.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  layout
-                  className="flex justify-between items-center bg-gray-700 px-4 py-2 mb-2 rounded-lg"
-                >
-                  <div className="text-left">
-                    <p className="font-medium">{game.name}</p>
-                    {game.lastPlayed && (
-                      <p className="text-sm text-gray-400">Last Played: {game.lastPlayed}</p>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => launchRpcs3Game(game)}
-                      className="text-green-400 hover:text-green-600 font-semibold"
-                      title="Launch"
-                    >
-                      ▶
-                    </button>
-                    <button
-                      onClick={() => removeRpcs3Game(game.id)}
-                      className="text-red-400 hover:text-red-600 font-semibold"
-                      title="Remove"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </motion.div>
-              ))
-            )}
-          </AnimatePresence>
+                  game={game}
+                  onPlay={() => launchRpcs3Game(game)}
+                  onRemove={() => removeRpcs3Game(game.id)}
+                />
+              )}
+            />
+          )}
         </div>
 
         {/* PCSX2 */}
@@ -303,45 +378,22 @@ export default function App() {
             </button>
           </div>
 
-          <AnimatePresence>
-            {pcsx2Games.length === 0 ? (
-              <p className="text-gray-400 text-center">No PCSX2 games added yet.</p>
-            ) : (
-              pcsx2Games.map((game) => (
-                <motion.div
+          {pcsx2Games.length === 0 ? (
+            <p className="text-gray-400 text-center">No PCSX2 games added yet.</p>
+          ) : (
+            <ReorderableList
+              items={pcsx2Games}
+              setItems={setPcsx2Games}
+              renderRow={(game) => (
+                <SortableGameRow
                   key={game.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  layout
-                  className="flex justify-between items-center bg-gray-700 px-4 py-2 mb-2 rounded-lg"
-                >
-                  <div className="text-left">
-                    <p className="font-medium">{game.name}</p>
-                    {game.lastPlayed && (
-                      <p className="text-sm text-gray-400">Last Played: {game.lastPlayed}</p>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => launchPcsx2GameWithIso(game)}
-                      className="text-green-400 hover:text-green-600 font-semibold"
-                      title="Launch"
-                    >
-                      ▶
-                    </button>
-                    <button
-                      onClick={() => removePcsx2Game(game.id)}
-                      className="text-red-400 hover:text-red-600 font-semibold"
-                      title="Remove"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </motion.div>
-              ))
-            )}
-          </AnimatePresence>
+                  game={game}
+                  onPlay={() => launchPcsx2GameWithIso(game)}
+                  onRemove={() => removePcsx2Game(game.id)}
+                />
+              )}
+            />
+          )}
         </div>
 
         {/* GOG */}
@@ -381,45 +433,22 @@ export default function App() {
             </button>
           </div>
 
-          <AnimatePresence>
-            {gogGames.length === 0 ? (
-              <p className="text-gray-400 text-center">No GOG games added yet.</p>
-            ) : (
-              gogGames.map((game) => (
-                <motion.div
+          {gogGames.length === 0 ? (
+            <p className="text-gray-400 text-center">No GOG games added yet.</p>
+          ) : (
+            <ReorderableList
+              items={gogGames}
+              setItems={setGogGames}
+              renderRow={(game) => (
+                <SortableGameRow
                   key={game.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  layout
-                  className="flex justify-between items-center bg-gray-700 px-4 py-2 mb-2 rounded-lg"
-                >
-                  <div className="text-left">
-                    <p className="font-medium">{game.name}</p>
-                    {game.lastPlayed && (
-                      <p className="text-sm text-gray-400">Last Played: {game.lastPlayed}</p>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => launchGogGame(game)}
-                      className="text-green-400 hover:text-green-600 font-semibold"
-                      title="Launch"
-                    >
-                      ▶
-                    </button>
-                    <button
-                      onClick={() => removeGogGame(game.id)}
-                      className="text-red-400 hover:text-red-600 font-semibold"
-                      title="Remove"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </motion.div>
-              ))
-            )}
-          </AnimatePresence>
+                  game={game}
+                  onPlay={() => launchGogGame(game)}
+                  onRemove={() => removeGogGame(game.id)}
+                />
+              )}
+            />
+          )}
         </div>
 
         {/* Steam */}
@@ -458,45 +487,22 @@ export default function App() {
             </button>
           </div>
 
-          <AnimatePresence>
-            {steamGames.length === 0 ? (
-              <p className="text-gray-400 text-center">No Steam games added yet.</p>
-            ) : (
-              steamGames.map((game) => (
-                <motion.div
+          {steamGames.length === 0 ? (
+            <p className="text-gray-400 text-center">No Steam games added yet.</p>
+          ) : (
+            <ReorderableList
+              items={steamGames}
+              setItems={setSteamGames}
+              renderRow={(game) => (
+                <SortableGameRow
                   key={game.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  layout
-                  className="flex justify-between items-center bg-gray-700 px-4 py-2 mb-2 rounded-lg"
-                >
-                  <div className="text-left">
-                    <p className="font-medium">{game.name}</p>
-                    {game.lastPlayed && (
-                      <p className="text-sm text-gray-400">Last Played: {game.lastPlayed}</p>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => launchSteamGame(game)}
-                      className="text-green-400 hover:text-green-600 font-semibold"
-                      title="Launch"
-                    >
-                      ▶
-                    </button>
-                    <button
-                      onClick={() => removeSteamGame(game.id)}
-                      className="text-red-400 hover:text-red-600 font-semibold"
-                      title="Remove"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </motion.div>
-              ))
-            )}
-          </AnimatePresence>
+                  game={game}
+                  onPlay={() => launchSteamGame(game)}
+                  onRemove={() => removeSteamGame(game.id)}
+                />
+              )}
+            />
+          )}
         </div>
       </div>
     </div>
