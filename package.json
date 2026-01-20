@@ -6,16 +6,18 @@
   "private": true,
   "main": "main.js",
   "homepage": "./",
-
   "dependencies": {
     "@babel/core": "^7.28.5",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/modifiers": "^9.0.0",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "framer-motion": "^10.12.16",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-scripts": "5.0.1",
     "web-vitals": "^2.1.4"
   },
-
   "devDependencies": {
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
@@ -23,7 +25,6 @@
     "electron-builder": "^26.4.0",
     "wait-on": "^9.0.3"
   },
-
   "scripts": {
     "start": "react-scripts start",
     "react-start": "cross-env BROWSER=none react-scripts start",
@@ -33,33 +34,27 @@
     "build": "react-scripts build",
     "dist": "npm run build && npx electron-builder --win --publish never"
   },
-
   "build": {
     "extends": null,
     "extraMetadata": {
       "main": "main.js"
     },
-
     "appId": "com.yourname.gamemanager",
     "productName": "Game Manager",
-
     "asar": true,
     "npmRebuild": false,
     "buildDependenciesFromSource": false,
     "nodeGypRebuild": false,
-
     "files": [
       "build/**/*",
       "main.js",
       "preload.js",
       "package.json"
     ],
-
     "directories": {
       "buildResources": "assets",
       "output": "dist"
     },
-
     "win": {
       "target": [
         "nsis",
@@ -67,20 +62,17 @@
       ],
       "icon": "assets/icon.ico"
     },
-
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     }
   },
-
   "eslintConfig": {
     "extends": [
       "react-app",
       "react-app/jest"
     ]
   },
-
   "browserslist": {
     "production": [
       ">0.2%",
@@ -93,11 +85,9 @@
       "last 1 safari version"
     ]
   },
-
   "overrides": {
     "nth-check": "^2.1.1",
     "css-select": "^5.1.0",
-    "postcss": "^8.4.31",
-    "webpack-dev-server": "^5.2.3"
+    "postcss": "^8.4.31"
   }
 }
