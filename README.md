@@ -38,6 +38,15 @@ cd react-game-launcher
 npm install
 ```
 
+
+## Security Notice
+
+Running `npm audit` will report vulnerabilities in `webpack-dev-server` 
+via `react-scripts`. These are **dev-only dependencies** and are not 
+bundled into the production `.exe`. End users are not affected. 
+This is a known limitation of Create React App which is no longer 
+actively maintained. Migration to Vite is planned for a future release.
+
 ### Development
 
 ```bash
