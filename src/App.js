@@ -2,6 +2,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { paths } from "./config";
 
+// Platform icons
+import rpcs3Icon from "./assets/rpc3-100.png";
+import pcsx2Icon from "./assets/pcsx2-100.png";
+import gogIcon from "./assets/gog-100.png";
+import steamIcon from "./assets/steam-100.png";
+
 import {
   DndContext,
   KeyboardSensor,
@@ -289,16 +295,17 @@ export default function App() {
   // ---------- UI ----------
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center py-10">
-      <h1 className="text-4xl font-bold mb-8 flex items-center gap-2">🎮 Game Manager</h1>
+      <h1 className="text-4xl font-bold mb-8 flex items-center gap-2">🎮 Game Launcher</h1>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 w-full max-w-7xl px-4">
         {/* RPCS3 */}
         <div className="bg-gray-800 rounded-2xl p-4 text-center">
-          <h2 className="text-xl font-semibold text-purple-400 mb-4">RPCS3</h2>
-
+          <h2 className="text-xl font-semibold text-purple-300 mb-4 flex items-center justify-center gap-2">
+            <img src={rpcs3Icon} alt="RPCS3" className="w-10 h-10 object-contain" />
+            RPCS3</h2>
           <button
             onClick={launchRpcs3Only}
-            className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg font-semibold w-full mb-4"
+            className="bg-purple-800 hover:bg-purple-900 px-4 py-2 rounded-lg font-semibold w-full mb-4"
           >
             Launch RPCS3
           </button>
@@ -320,7 +327,7 @@ export default function App() {
             />
             <button
               onClick={addRpcs3Game}
-              className="bg-purple-500 hover:bg-purple-600 px-4 py-2 rounded-lg font-semibold"
+              className="bg-purple-800 hover:bg-purple-900 px-4 py-2 rounded-lg font-semibold"
             >
               Add
             </button>
@@ -346,11 +353,12 @@ export default function App() {
 
         {/* PCSX2 */}
         <div className="bg-gray-800 rounded-2xl p-4 text-center">
-          <h2 className="text-xl font-semibold text-blue-400 mb-4">PCSX2</h2>
-
+          <h2 className="text-xl font-semibold text-blue-400 mb-4 flex items-center justify-center gap-2">
+            <img src={pcsx2Icon} alt="PCSX2" className="w-10 h-10 object-contain" />
+            PCSX2</h2>
           <button
             onClick={launchPcsx2Only}
-            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-semibold w-full mb-4"
+            className="bg-blue-700 hover:bg-blue-800 px-4 py-2 rounded-lg font-semibold w-full mb-4"
           >
             Launch PCSX2
           </button>
@@ -372,7 +380,7 @@ export default function App() {
             />
             <button
               onClick={addPcsx2Game}
-              className="bg-blue-500 hover:bg-blue-600 px-4 py-2 rounded-lg font-semibold"
+              className="bg-blue-700 hover:bg-blue-800 px-4 py-2 rounded-lg font-semibold"
             >
               Add
             </button>
@@ -398,14 +406,15 @@ export default function App() {
 
         {/* GOG */}
         <div className="bg-gray-800 rounded-2xl p-4 text-center">
-          <h2 className="text-xl font-semibold text-green-400 mb-4">GOG</h2>
-
+          <h2 className="text-xl font-semibold text-purple-400 mb-4 flex items-center justify-center gap-2">
+            <img src={gogIcon} alt="GOG" className="w-10 h-10 object-contain" />
+            GOG</h2>
           <button
             onClick={() => {
               if (!ensureElectronGame()) return;
               window.electronAPI.launchGame(`"${paths.gog}"`);
             }}
-            className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-semibold w-full mb-4"
+            className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg font-semibold w-full mb-4"
           >
             Launch GOG
           </button>
@@ -427,7 +436,7 @@ export default function App() {
             />
             <button
               onClick={addGogGame}
-              className="bg-green-500 hover:bg-green-600 px-4 py-2 rounded-lg font-semibold"
+              className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg font-semibold"
             >
               Add
             </button>
@@ -453,13 +462,14 @@ export default function App() {
 
         {/* Steam */}
         <div className="bg-gray-800 rounded-2xl p-4 text-center">
-          <h2 className="text-xl font-semibold text-yellow-400 mb-4">Steam</h2>
-
+          <h2 className="text-xl font-semibold text-sky-400 mb-4 flex items-center justify-center gap-2">
+            <img src={steamIcon} alt="Steam" className="w-10 h-10 object-contain" />
+            Steam</h2>
           <button
             onClick={() => {
               window.location.href = "steam://open/main";
             }}
-            className="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded-lg font-semibold w-full mb-4"
+            className="bg-sky-700 hover:bg-sky-800 px-4 py-2 rounded-lg font-semibold w-full mb-4"
           >
             Steam Launcher
           </button>
@@ -481,7 +491,7 @@ export default function App() {
             />
             <button
               onClick={addSteamGame}
-              className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-semibold"
+              className="bg-sky-700 hover:bg-sky-800 px-4 py-2 rounded-lg font-semibold"
             >
               Add
             </button>
@@ -504,6 +514,7 @@ export default function App() {
             />
           )}
         </div>
+
       </div>
     </div>
   );
