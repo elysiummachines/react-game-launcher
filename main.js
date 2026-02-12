@@ -4,7 +4,7 @@ const path = require("path");
 const { exec } = require("child_process");
 
 // REQUIRED for correct Windows taskbar & pinned icon
-app.setAppUserModelId("com.yourname.gamemanager");
+app.setAppUserModelId("com.yourname.gamelauncher");
 
 const isDev = !app.isPackaged;
 
@@ -14,7 +14,7 @@ function createWindow() {
     height: 900,
 
     // Window title (kills "React App")
-    title: "Game Manager",
+    title: "Game Launcher",
 
     // Runtime + taskbar icon
     icon: path.join(__dirname, "assets", "icon.ico"),
@@ -34,10 +34,17 @@ function createWindow() {
 
   // Force title after load (Windows sometimes overrides)
   win.webContents.once("did-finish-load", () => {
-    win.setTitle("Game Manager");
+    win.setTitle("Game Launcher");
   });
 }
-
+/*
+|--------------------------------------------------------------------------
+| GET APP VERSION
+|--------------------------------------------------------------------------
+*/
+ipcMain.handle("get-app-version", async () => {
+  return app.getVersion();
+});
 /*
 |--------------------------------------------------------------------------
 | GENERIC COMMAND LAUNCHER
