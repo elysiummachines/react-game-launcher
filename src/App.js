@@ -28,6 +28,20 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
 
+/*
+|--------------------------------------------------------------------------
+| FORMAT PLAY TIME — converts total seconds into a readable string
+|--------------------------------------------------------------------------
+*/
+function formatPlayTime(totalSeconds) {
+  if (!totalSeconds || totalSeconds <= 0) return null;
+  if (totalSeconds < 60) return "< 1 min";
+  const hours = totalSeconds / 3600;
+  if (hours >= 1) return `${hours.toFixed(1)}h`;
+  const minutes = Math.floor(totalSeconds / 60);
+  return `${minutes}m`;
+}
+
 function SortableGameRow({ game, onPlay, onRemove }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: String(game.id),
@@ -38,6 +52,8 @@ function SortableGameRow({ game, onPlay, onRemove }) {
     transition,
     opacity: isDragging ? 0.85 : 1,
   };
+
+  const playTime = formatPlayTime(game.totalPlayTime);
 
   return (
     <div
@@ -59,7 +75,12 @@ function SortableGameRow({ game, onPlay, onRemove }) {
         <div className="min-w-0">
           <p className="font-medium truncate">{game.name}</p>
           {game.lastPlayed && (
-            <p className="text-sm text-gray-400">Last Played: {game.lastPlayed}</p>
+            <p className="text-sm text-gray-400">
+              Last Played: {game.lastPlayed}
+              {playTime && (
+                <span className="text-cyan-400 ml-0">⏱{playTime} played</span>
+              )}
+            </p>
           )}
         </div>
       </div>
@@ -168,6 +189,32 @@ export default function App() {
     localStorage.setItem("rpcs3Games", JSON.stringify(rpcs3Games));
   }, [rpcs3Games]);
 
+  /*
+  |--------------------------------------------------------------------------
+  | LISTEN FOR GAME CLOSED — accumulate play time
+  |--------------------------------------------------------------------------
+  */
+  useEffect(() => {
+    if (!(window.electronAPI && window.electronAPI.onGameClosed)) return;
+
+    window.electronAPI.onGameClosed((data) => {
+      const { gameId, elapsedSeconds } = data;
+      console.log(`Game closed: ${gameId}, played for ${elapsedSeconds}s`);
+
+      const updater = (prev) =>
+        prev.map((g) =>
+          String(g.id) === String(gameId)
+            ? { ...g, totalPlayTime: (g.totalPlayTime || 0) + elapsedSeconds }
+            : g
+        );
+
+      setSteamGames(updater);
+      setGogGames(updater);
+      setPcsx2Games(updater);
+      setRpcs3Games(updater);
+    });
+  }, []);
+
   // ---------- HELPERS ----------
   const ensureElectronGame = () => {
     if (!(window.electronAPI && window.electronAPI.launchGame)) {
@@ -183,7 +230,7 @@ export default function App() {
 
     setSteamGames((prev) => [
       ...prev,
-      { id: Date.now(), name: newSteamGame.trim(), steamId: steamId.trim(), lastPlayed: null },
+      { id: Date.now(), name: newSteamGame.trim(), steamId: steamId.trim(), lastPlayed: null, totalPlayTime: 0 },
     ]);
 
     setNewSteamGame("");
@@ -195,7 +242,7 @@ export default function App() {
 
     setGogGames((prev) => [
       ...prev,
-      { id: Date.now(), name: newGogGame.trim(), gogId: gogId.trim(), lastPlayed: null },
+      { id: Date.now(), name: newGogGame.trim(), gogId: gogId.trim(), lastPlayed: null, totalPlayTime: 0 },
     ]);
 
     setNewGogGame("");
@@ -207,7 +254,7 @@ export default function App() {
 
     setPcsx2Games((prev) => [
       ...prev,
-      { id: Date.now(), name: newPcsx2Game.trim(), isoPath: pcsx2IsoPath.trim(), lastPlayed: null },
+      { id: Date.now(), name: newPcsx2Game.trim(), isoPath: pcsx2IsoPath.trim(), lastPlayed: null, totalPlayTime: 0 },
     ]);
 
     setNewPcsx2Game("");
@@ -219,7 +266,7 @@ export default function App() {
 
     setRpcs3Games((prev) => [
       ...prev,
-      { id: Date.now(), name: newRpcs3Game.trim(), gamePath: rpcs3GamePath.trim(), lastPlayed: null },
+      { id: Date.now(), name: newRpcs3Game.trim(), gamePath: rpcs3GamePath.trim(), lastPlayed: null, totalPlayTime: 0 },
     ]);
 
     setNewRpcs3Game("");
@@ -238,7 +285,7 @@ export default function App() {
     if (!ensureElectronGame()) return;
 
     const command = `"${paths.gog}" /command=runGame /gameId=${game.gogId}`;
-    window.electronAPI.launchGame(command);
+    window.electronAPI.launchGame(command, game.id);
 
     setGogGames((prev) =>
       prev.map((g) => (g.id === game.id ? { ...g, lastPlayed: new Date().toLocaleString() } : g))
@@ -249,7 +296,7 @@ export default function App() {
     if (!ensureElectronGame()) return;
 
     const command = `"${paths.pcsx2}" "${game.isoPath}"`;
-    window.electronAPI.launchGame(command);
+    window.electronAPI.launchGame(command, game.id);
 
     setPcsx2Games((prev) =>
       prev.map((g) => (g.id === game.id ? { ...g, lastPlayed: new Date().toLocaleString() } : g))
@@ -272,7 +319,7 @@ export default function App() {
     if (!ensureElectronGame()) return;
 
     const command = `"${paths.rpcs3}" --no-gui "${game.gamePath}"`;
-    window.electronAPI.launchGame(command);
+    window.electronAPI.launchGame(command, game.id);
 
     setRpcs3Games((prev) =>
       prev.map((g) => (g.id === game.id ? { ...g, lastPlayed: new Date().toLocaleString() } : g))
