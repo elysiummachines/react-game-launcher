@@ -1,7 +1,7 @@
 // main.js
-const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, ipcMain } = require("electron");
 const path = require("path");
-const { exec } = require("child_process");
+const { spawn } = require("child_process");
 
 // REQUIRED for correct Windows taskbar & pinned icon
 app.setAppUserModelId("com.yourname.gamelauncher");
@@ -54,38 +54,24 @@ ipcMain.handle("launch-game", async (_evt, command) => {
   console.log("Launching via Electron (launch-game):", command);
 
   return new Promise((resolve) => {
-    exec(command, { shell: "cmd.exe", windowsHide: false }, (err, stdout, stderr) => {
-      if (stdout) console.log("stdout:", stdout);
-      if (stderr) console.log("stderr:", stderr);
+    const parts = command.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+    const exe = parts[0].replace(/"/g, "");
+    const args = parts.slice(1).map((a) => a.replace(/"/g, ""));
 
-      if (err) {
-        resolve({
-          ok: false,
-          error: String(err),
-          stderr: String(stderr || ""),
-        });
-      } else {
-        resolve({ ok: true });
-      }
+    const child = spawn(exe, args, {
+      detached: true,
+      stdio: "ignore",
     });
+
+    child.unref();
+
+    child.on("error", (err) => {
+      console.error("Launch error:", err);
+      resolve({ ok: false, error: String(err) });
+    });
+
+    resolve({ ok: true });
   });
-});
-
-/*
-|--------------------------------------------------------------------------
-| PCSX2 DIRECT LAUNCHER
-|--------------------------------------------------------------------------
-*/
-ipcMain.handle("launch-pcsx2", async (_evt, exePath) => {
-  console.log("Launching PCSX2:", exePath);
-
-  const result = await shell.openPath(exePath);
-
-  if (result) {
-    return { ok: false, error: result };
-  }
-
-  return { ok: true };
 });
 
 app.whenReady().then(() => {
