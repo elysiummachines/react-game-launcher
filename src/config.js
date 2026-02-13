@@ -13,5 +13,5 @@ export const paths = {
 
 export const settings = {
   theme: "dark",
-  version: "1.0.0",
+  version: "0.2.1",
 };
