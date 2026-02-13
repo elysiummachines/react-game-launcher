@@ -177,14 +177,6 @@ export default function App() {
     return true;
   };
 
-  const ensureElectronPCSX2 = () => {
-    if (!(window.electronAPI && window.electronAPI.launchPCSX2)) {
-      console.error("Electron bridge not found: launchPCSX2");
-      return false;
-    }
-    return true;
-  };
-
   // ---------- ADD ----------
   const addSteamGame = () => {
     if (!newSteamGame.trim() || !steamId.trim()) return;
@@ -265,8 +257,9 @@ export default function App() {
   };
 
   const launchPcsx2Only = () => {
-    if (!ensureElectronPCSX2()) return;
-    window.electronAPI.launchPCSX2(paths.pcsx2);
+    if (!ensureElectronGame()) return;
+    const command = `"${paths.pcsx2}"`;
+    window.electronAPI.launchGame(command);
   };
 
   const launchRpcs3Only = () => {
