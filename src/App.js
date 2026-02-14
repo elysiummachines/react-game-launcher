@@ -42,7 +42,7 @@ function formatPlayTime(totalSeconds) {
   return `${minutes}m`;
 }
 
-function SortableGameRow({ game, onPlay, onRemove }) {
+function SortableGameRow({ game, onPlay, onRemove, isSteam, isGog, isPcsx2, isRpcs3 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: String(game.id),
   });
@@ -73,12 +73,23 @@ function SortableGameRow({ game, onPlay, onRemove }) {
         </button>
 
         <div className="min-w-0">
-          <p className="font-medium truncate">{game.name}</p>
+          <p className="font-medium truncate">
+            {game.name}
+            {isSteam && game.launchMode === "steam" && (
+              <span className="text-xs text-sky-400 ml-1 relative -top-[1px]" title="Steam ID launch">🛡️</span>
+            )}
+            {isSteam && game.launchMode !== "steam" && (
+              <span className="text-xs ml-1" title="Direct EXE">📁</span>
+            )}
+            {isGog && <span className="text-xs ml-1 relative -top-[2px]" title="GOG game">📁</span>}
+            {isPcsx2 && <span className="text-xs ml-1" title="ISO game">💿</span>}
+            {isRpcs3 && <span className="text-xs ml-1 relative -top-[2px]" title="Game folder">📂</span>}
+          </p>
           {game.lastPlayed && (
             <p className="text-sm text-gray-400">
               Last Played: {game.lastPlayed}
               {playTime && (
-                <span className="text-cyan-400 ml-0">⏱{playTime} played</span>
+                <span className="text-cyan-400 text-xs ml-0">⏱{playTime} played</span>
               )}
             </p>
           )}
@@ -161,10 +172,13 @@ export default function App() {
   });
 
   const [newSteamGame, setNewSteamGame] = useState("");
-  const [steamId, setSteamId] = useState("");
+  const [steamExePath, setSteamExePath] = useState("");
+  const [steamAppId, setSteamAppId] = useState("");
+  const [steamLaunchMode, setSteamLaunchMode] = useState("steam"); // "steam" or "exe"
+  const [steamExeName, setSteamExeName] = useState("");
 
   const [newGogGame, setNewGogGame] = useState("");
-  const [gogId, setGogId] = useState("");
+  const [gogExePath, setGogExePath] = useState("");
 
   const [newPcsx2Game, setNewPcsx2Game] = useState("");
   const [pcsx2IsoPath, setPcsx2IsoPath] = useState("");
@@ -226,27 +240,42 @@ export default function App() {
 
   // ---------- ADD ----------
   const addSteamGame = () => {
-    if (!newSteamGame.trim() || !steamId.trim()) return;
+    if (!newSteamGame.trim()) return;
+
+    // For steam:// mode, we need an App ID. For exe mode, we need the exe path.
+    if (steamLaunchMode === "steam" && !steamAppId.trim()) return;
+    if (steamLaunchMode === "exe" && !steamExePath.trim()) return;
 
     setSteamGames((prev) => [
       ...prev,
-      { id: Date.now(), name: newSteamGame.trim(), steamId: steamId.trim(), lastPlayed: null, totalPlayTime: 0 },
+      {
+        id: Date.now(),
+        name: newSteamGame.trim(),
+        exePath: steamExePath.trim(),
+        steamAppId: steamAppId.trim(),
+        launchMode: steamLaunchMode, // "steam" or "exe"
+        steamExeName: steamExeName.trim(),
+        lastPlayed: null,
+        totalPlayTime: 0,
+      },
     ]);
 
     setNewSteamGame("");
-    setSteamId("");
+    setSteamExePath("");
+    setSteamAppId("");
+    setSteamExeName("");
   };
 
   const addGogGame = () => {
-    if (!newGogGame.trim() || !gogId.trim()) return;
+    if (!newGogGame.trim() || !gogExePath.trim()) return;
 
     setGogGames((prev) => [
       ...prev,
-      { id: Date.now(), name: newGogGame.trim(), gogId: gogId.trim(), lastPlayed: null, totalPlayTime: 0 },
+      { id: Date.now(), name: newGogGame.trim(), exePath: gogExePath.trim(), lastPlayed: null, totalPlayTime: 0 },
     ]);
 
     setNewGogGame("");
-    setGogId("");
+    setGogExePath("");
   };
 
   const addPcsx2Game = () => {
@@ -274,8 +303,34 @@ export default function App() {
   };
 
   // ---------- LAUNCH ----------
+
+  /*
+  |--------------------------------------------------------------------------
+  | HYBRID STEAM LAUNCH
+  |--------------------------------------------------------------------------
+  | "steam" mode  → uses steam://rungameid/<appId>  (anti-cheat safe, no
+  |                  "custom arguments" popup, Steam overlay works properly)
+  | "exe" mode    → launches the exe directly (old behavior, for games that
+  |                  don't need anti-cheat or Steam overlay)
+  |--------------------------------------------------------------------------
+  */
   const launchSteamGame = (game) => {
-    window.location.href = `steam://rungameid/${game.steamId}`;
+    if (game.launchMode === "steam" && game.steamAppId) {
+      // Launch via Steam protocol — anti-cheat safe
+      if (window.electronAPI && window.electronAPI.launchSteamUrl) {
+        window.electronAPI.launchSteamUrl(`steam://rungameid/${game.steamAppId}`, game.id, game.steamExeName || null);
+      } else if (window.electronAPI && window.electronAPI.launchGame) {
+        // Fallback: use start command to open steam:// URL on Windows
+        const command = `cmd /c start "" "steam://rungameid/${game.steamAppId}"`;
+        window.electronAPI.launchGame(command, game.id);
+      }
+    } else {
+      // Direct exe launch (old behavior)
+      if (!ensureElectronGame()) return;
+      const command = `"${game.exePath}"`;
+      window.electronAPI.launchGame(command, game.id);
+    }
+
     setSteamGames((prev) =>
       prev.map((g) => (g.id === game.id ? { ...g, lastPlayed: new Date().toLocaleString() } : g))
     );
@@ -284,7 +339,7 @@ export default function App() {
   const launchGogGame = (game) => {
     if (!ensureElectronGame()) return;
 
-    const command = `"${paths.gog}" /command=runGame /gameId=${game.gogId}`;
+    const command = `"${game.exePath}"`;
     window.electronAPI.launchGame(command, game.id);
 
     setGogGames((prev) =>
@@ -383,6 +438,7 @@ export default function App() {
                 <SortableGameRow
                   key={game.id}
                   game={game}
+                  isRpcs3
                   onPlay={() => launchRpcs3Game(game)}
                   onRemove={() => removeRpcs3Game(game.id)}
                 />
@@ -436,6 +492,7 @@ export default function App() {
                 <SortableGameRow
                   key={game.id}
                   game={game}
+                  isPcsx2
                   onPlay={() => launchPcsx2GameWithIso(game)}
                   onRemove={() => removePcsx2Game(game.id)}
                 />
@@ -469,9 +526,9 @@ export default function App() {
             />
             <input
               type="text"
-              placeholder="GOG game ID..."
-              value={gogId}
-              onChange={(e) => setGogId(e.target.value)}
+              placeholder="path to game exe..."
+              value={gogExePath}
+              onChange={(e) => setGogExePath(e.target.value)}
               className="px-3 py-2 rounded-lg text-black"
             />
             <button
@@ -492,6 +549,7 @@ export default function App() {
                 <SortableGameRow
                   key={game.id}
                   game={game}
+                  isGog
                   onPlay={() => launchGogGame(game)}
                   onRemove={() => removeGogGame(game.id)}
                 />
@@ -500,7 +558,7 @@ export default function App() {
           )}
         </div>
 
-        {/* Steam */}
+        {/* Steam - HYBRID LAUNCH */}
         <div className="bg-gray-800 rounded-2xl p-4 text-center">
           <h2 className="text-xl font-semibold text-sky-400 mb-4 flex items-center justify-center gap-2">
             <img src={steamIcon} alt="Steam" className="w-10 h-10 object-contain" />
@@ -522,13 +580,62 @@ export default function App() {
               onChange={(e) => setNewSteamGame(e.target.value)}
               className="px-3 py-2 rounded-lg text-black"
             />
-            <input
-              type="text"
-              placeholder="Steam game ID..."
-              value={steamId}
-              onChange={(e) => setSteamId(e.target.value)}
-              className="px-3 py-2 rounded-lg text-black"
-            />
+
+            {/* Launch mode toggle */}
+            <div className="flex rounded-lg overflow-hidden border border-gray-600">
+              <button
+                type="button"
+                onClick={() => setSteamLaunchMode("steam")}
+                className={`flex-1 px-3 py-2 text-sm font-semibold transition-colors ${
+                  steamLaunchMode === "steam"
+                    ? "bg-sky-600 text-white"
+                    : "bg-gray-700 text-gray-400 hover:text-white"
+                }`}
+                title="Launch via Steam protocol — anti-cheat safe, no 'custom arguments' popup"
+              >
+                🛡️ Steam ID
+              </button>
+              <button
+                type="button"
+                onClick={() => setSteamLaunchMode("exe")}
+                className={`flex-1 px-3 py-2 text-sm font-semibold transition-colors ${
+                  steamLaunchMode === "exe"
+                    ? "bg-sky-600 text-white"
+                    : "bg-gray-700 text-gray-400 hover:text-white"
+                }`}
+                title="Launch exe directly — may trigger 'custom arguments' popup or break anti-cheat"
+              >
+                📁 Direct EXE
+              </button>
+            </div>
+
+            {steamLaunchMode === "steam" ? (
+              <>
+              <input
+                type="text"
+                placeholder="Steam App ID (e.g. 730 for CS2)..."
+                value={steamAppId}
+                onChange={(e) => setSteamAppId(e.target.value)}
+                className="px-3 py-2 rounded-lg text-black"
+              />
+              <input
+                type="text"
+                placeholder="Process name (e.g. DOOMx64vk.exe)..."
+                value={steamExeName}
+                onChange={(e) => setSteamExeName(e.target.value)}
+                className="px-3 py-2 rounded-lg text-black"
+              />
+              </>
+            ) : (
+              <input
+                type="text"
+                placeholder="Path to game exe..."
+                value={steamExePath}
+                onChange={(e) => setSteamExePath(e.target.value)}
+                className="px-3 py-2 rounded-lg text-black"
+              />
+            )}
+
             <button
               onClick={addSteamGame}
               className="bg-sky-700 hover:bg-sky-800 px-4 py-2 rounded-lg font-semibold"
@@ -547,6 +654,7 @@ export default function App() {
                 <SortableGameRow
                   key={game.id}
                   game={game}
+                  isSteam
                   onPlay={() => launchSteamGame(game)}
                   onRemove={() => removeSteamGame(game.id)}
                 />
