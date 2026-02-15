@@ -137,6 +137,12 @@ ipcMain.handle("get-app-version", async () => {
 | renderer, we use that; otherwise we skip play time tracking for
 | steam:// launches (the renderer still records lastPlayed timestamp).
 |--------------------------------------------------------------------------
+| Accepts an optional gameId so we know which game to update
+| when the process exits.
+|
+| The renderer calls:
+|   launchGame(command)           ← old way, still works
+|   launchGame(command, gameId)   ← new way, enables time tracking
 */
 ipcMain.handle("launch-steam-url", async (_evt, steamUrl, gameId, exeName) => {
   console.log("Launching Steam URL:", steamUrl);
