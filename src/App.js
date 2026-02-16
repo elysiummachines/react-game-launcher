@@ -42,6 +42,46 @@ function formatPlayTime(totalSeconds) {
   return `${minutes}m`;
 }
 
+/*
+|--------------------------------------------------------------------------
+| PLAY HISTORY HELPERS
+|--------------------------------------------------------------------------
+| These functions sync play time and last played date to a persistent
+| JSON file via Electron IPC. The history is keyed by lowercase game
+| name so re-adding a game with the same name restores its history.
+|--------------------------------------------------------------------------
+*/
+function getHistoryKey(gameName) {
+  return gameName.toLowerCase().trim();
+}
+
+async function saveGameToHistory(game, platform) {
+  if (!(window.electronAPI && window.electronAPI.loadPlayHistory)) return;
+  try {
+    const history = await window.electronAPI.loadPlayHistory();
+    const key = getHistoryKey(game.name);
+    history[key] = {
+      name: game.name,
+      totalPlayTime: game.totalPlayTime || 0,
+      lastPlayed: game.lastPlayed || null,
+      platform: platform,
+    };
+    await window.electronAPI.savePlayHistory(history);
+  } catch (err) {
+    console.error("Failed to save game history:", err);
+  }
+}
+
+async function getGameFromHistory(gameName) {
+  if (!(window.electronAPI && window.electronAPI.getGameHistory)) return null;
+  try {
+    return await window.electronAPI.getGameHistory(gameName);
+  } catch (err) {
+    console.error("Failed to load game history:", err);
+    return null;
+  }
+}
+
 function SortableGameRow({ game, onPlay, onRemove, isSteam, isGog, isPcsx2, isRpcs3 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: String(game.id),
@@ -205,7 +245,7 @@ export default function App() {
 
   /*
   |--------------------------------------------------------------------------
-  | LISTEN FOR GAME CLOSED — accumulate play time
+  | LISTEN FOR GAME CLOSED - accumulate play time + save to history
   |--------------------------------------------------------------------------
   */
   useEffect(() => {
@@ -226,6 +266,32 @@ export default function App() {
       setGogGames(updater);
       setPcsx2Games(updater);
       setRpcs3Games(updater);
+
+      // Save updated play time to persistent history
+      // We need to find the game across all platforms to get its name
+      const findAndSave = (games, platform) => {
+        const game = games.find((g) => String(g.id) === String(gameId));
+        if (game) {
+          const updated = { ...game, totalPlayTime: (game.totalPlayTime || 0) + elapsedSeconds };
+          saveGameToHistory(updated, platform);
+        }
+      };
+
+      // Use current state via functional refs — we read from localStorage
+      // since state may not be updated yet inside this callback
+      try {
+        const steam = JSON.parse(localStorage.getItem("steamGames") || "[]");
+        const gog = JSON.parse(localStorage.getItem("gogGames") || "[]");
+        const pcsx2 = JSON.parse(localStorage.getItem("pcsx2Games") || "[]");
+        const rpcs3 = JSON.parse(localStorage.getItem("rpcs3Games") || "[]");
+
+        findAndSave(steam, "steam");
+        findAndSave(gog, "gog");
+        findAndSave(pcsx2, "pcsx2");
+        findAndSave(rpcs3, "rpcs3");
+      } catch (err) {
+        console.error("Failed to save play history on game close:", err);
+      }
     });
   }, []);
 
@@ -238,13 +304,16 @@ export default function App() {
     return true;
   };
 
-  // ---------- ADD ----------
-  const addSteamGame = () => {
+  // ---------- ADD (with history restore) ----------
+  const addSteamGame = async () => {
     if (!newSteamGame.trim()) return;
 
     // For steam:// mode, we need an App ID. For exe mode, we need the exe path.
     if (steamLaunchMode === "steam" && !steamAppId.trim()) return;
     if (steamLaunchMode === "exe" && !steamExePath.trim()) return;
+
+    // Check for existing play history
+    const history = await getGameFromHistory(newSteamGame.trim());
 
     setSteamGames((prev) => [
       ...prev,
@@ -255,8 +324,8 @@ export default function App() {
         steamAppId: steamAppId.trim(),
         launchMode: steamLaunchMode, // "steam" or "exe"
         steamExeName: steamExeName.trim(),
-        lastPlayed: null,
-        totalPlayTime: 0,
+        lastPlayed: history ? history.lastPlayed : null,
+        totalPlayTime: history ? history.totalPlayTime : 0,
       },
     ]);
 
@@ -266,43 +335,67 @@ export default function App() {
     setSteamExeName("");
   };
 
-  const addGogGame = () => {
+  const addGogGame = async () => {
     if (!newGogGame.trim() || !gogExePath.trim()) return;
+
+    const history = await getGameFromHistory(newGogGame.trim());
 
     setGogGames((prev) => [
       ...prev,
-      { id: Date.now(), name: newGogGame.trim(), exePath: gogExePath.trim(), lastPlayed: null, totalPlayTime: 0 },
+      {
+        id: Date.now(),
+        name: newGogGame.trim(),
+        exePath: gogExePath.trim(),
+        lastPlayed: history ? history.lastPlayed : null,
+        totalPlayTime: history ? history.totalPlayTime : 0,
+      },
     ]);
 
     setNewGogGame("");
     setGogExePath("");
   };
 
-  const addPcsx2Game = () => {
+  const addPcsx2Game = async () => {
     if (!newPcsx2Game.trim() || !pcsx2IsoPath.trim()) return;
+
+    const history = await getGameFromHistory(newPcsx2Game.trim());
 
     setPcsx2Games((prev) => [
       ...prev,
-      { id: Date.now(), name: newPcsx2Game.trim(), isoPath: pcsx2IsoPath.trim(), lastPlayed: null, totalPlayTime: 0 },
+      {
+        id: Date.now(),
+        name: newPcsx2Game.trim(),
+        isoPath: pcsx2IsoPath.trim(),
+        lastPlayed: history ? history.lastPlayed : null,
+        totalPlayTime: history ? history.totalPlayTime : 0,
+      },
     ]);
 
     setNewPcsx2Game("");
     setPcsx2IsoPath("");
   };
 
-  const addRpcs3Game = () => {
+  const addRpcs3Game = async () => {
     if (!newRpcs3Game.trim() || !rpcs3GamePath.trim()) return;
+
+    const history = await getGameFromHistory(newRpcs3Game.trim());
 
     setRpcs3Games((prev) => [
       ...prev,
-      { id: Date.now(), name: newRpcs3Game.trim(), gamePath: rpcs3GamePath.trim(), lastPlayed: null, totalPlayTime: 0 },
+      {
+        id: Date.now(),
+        name: newRpcs3Game.trim(),
+        gamePath: rpcs3GamePath.trim(),
+        lastPlayed: history ? history.lastPlayed : null,
+        totalPlayTime: history ? history.totalPlayTime : 0,
+      },
     ]);
 
     setNewRpcs3Game("");
     setRpcs3GamePath("");
   };
 
-  // ---------- LAUNCH ----------
+  // ---------- LAUNCH (also saves lastPlayed to history) ----------
 
   /*
   |--------------------------------------------------------------------------
@@ -331,9 +424,11 @@ export default function App() {
       window.electronAPI.launchGame(command, game.id);
     }
 
+    const now = new Date().toLocaleString();
     setSteamGames((prev) =>
-      prev.map((g) => (g.id === game.id ? { ...g, lastPlayed: new Date().toLocaleString() } : g))
+      prev.map((g) => (g.id === game.id ? { ...g, lastPlayed: now } : g))
     );
+    saveGameToHistory({ ...game, lastPlayed: now }, "steam");
   };
 
   const launchGogGame = (game) => {
@@ -342,9 +437,11 @@ export default function App() {
     const command = `"${game.exePath}"`;
     window.electronAPI.launchGame(command, game.id);
 
+    const now = new Date().toLocaleString();
     setGogGames((prev) =>
-      prev.map((g) => (g.id === game.id ? { ...g, lastPlayed: new Date().toLocaleString() } : g))
+      prev.map((g) => (g.id === game.id ? { ...g, lastPlayed: now } : g))
     );
+    saveGameToHistory({ ...game, lastPlayed: now }, "gog");
   };
 
   const launchPcsx2GameWithIso = (game) => {
@@ -353,9 +450,11 @@ export default function App() {
     const command = `"${paths.pcsx2}" "${game.isoPath}"`;
     window.electronAPI.launchGame(command, game.id);
 
+    const now = new Date().toLocaleString();
     setPcsx2Games((prev) =>
-      prev.map((g) => (g.id === game.id ? { ...g, lastPlayed: new Date().toLocaleString() } : g))
+      prev.map((g) => (g.id === game.id ? { ...g, lastPlayed: now } : g))
     );
+    saveGameToHistory({ ...game, lastPlayed: now }, "pcsx2");
   };
 
   const launchPcsx2Only = () => {
@@ -376,9 +475,11 @@ export default function App() {
     const command = `"${paths.rpcs3}" --no-gui "${game.gamePath}"`;
     window.electronAPI.launchGame(command, game.id);
 
+    const now = new Date().toLocaleString();
     setRpcs3Games((prev) =>
-      prev.map((g) => (g.id === game.id ? { ...g, lastPlayed: new Date().toLocaleString() } : g))
+      prev.map((g) => (g.id === game.id ? { ...g, lastPlayed: now } : g))
     );
+    saveGameToHistory({ ...game, lastPlayed: now }, "rpcs3");
   };
 
   // ---------- REMOVE ----------
