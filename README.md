@@ -13,7 +13,7 @@
 
 </div>
 
-![Game Launcher Screenshot](G.L.png)
+![Game Launcher demo](demo.gif)
 
 ## Overview
 
