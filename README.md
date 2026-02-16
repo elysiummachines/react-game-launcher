@@ -1,6 +1,17 @@
-# 🎮 Game Launcher
+<div align="center">
 
-A lightweight desktop application that brings your game library and emulators under one roof.
+# 🎮 Game Launcher
+**A lightweight desktop application that brings your game library and emulators under one roof.**
+
+[![Release](https://img.shields.io/github/v/release/elysiummachines/react-game-launcher?style=flat-square&color=blue)](https://github.com/elysiummachines/react-game-launcher/releases)
+[![Node](https://img.shields.io/badge/Node-v18+-green?style=flat-square)](https://nodejs.org/)
+[![Electron](https://img.shields.io/badge/Electron-React-cyan?style=flat-square)](https://www.electronjs.org/)
+[![License](https://img.shields.io/badge/License-MIT-grey.svg?style=flat-square)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/elysiummachines/react-game-launcher?style=social)](https://github.com/elysiummachines/react-game-launcher/stargazers)
+
+[Features](#features) • [Getting Started](#getting-started) • [Configuration](#configuration) • [Changelog](CHANGELOG.md)
+
+</div>
 
 ![Game Launcher Screenshot](G.L.png)
 
