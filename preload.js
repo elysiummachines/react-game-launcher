@@ -18,4 +18,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onGameClosed: (callback) => {
     ipcRenderer.on("game-closed", (_event, data) => callback(data));
   },
+  // Play history persistence
+  // Loads the entire play-history.json from disk
+  loadPlayHistory: () => ipcRenderer.invoke("load-play-history"),
+  // Saves the entire play-history.json to disk
+  savePlayHistory: (history) => ipcRenderer.invoke("save-play-history", history),
+  // Gets history for a single game by name (returns null if not found)
+  getGameHistory: (gameName) => ipcRenderer.invoke("get-game-history", gameName),
 });

@@ -2,7 +2,7 @@
 
 A lightweight desktop application that brings your game library and emulators under one roof.
 
-![Game Launcher Screenshot](G.L.png)
+![Game Launcher demo](demo.gif)
 
 ## Overview
 

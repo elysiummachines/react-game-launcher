@@ -1,12 +1,44 @@
 // main.js
 const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const path = require("path");
+const fs = require("fs");
 const { spawn, execSync } = require("child_process");
 
 // REQUIRED for correct Windows taskbar & pinned icon
 app.setAppUserModelId("com.yourname.gamelauncher");
 
 const isDev = !app.isPackaged;
+
+/*
+|--------------------------------------------------------------------------
+| PLAY HISTORY FILE
+|--------------------------------------------------------------------------
+| Stores play time and last played date for all games, keyed by game name.
+| Lives in Electron's userData directory so it survives reinstalls.
+| Path: %APPDATA%/Game Launcher/play-history.json
+|--------------------------------------------------------------------------
+*/
+const historyFilePath = path.join(app.getPath("userData"), "play-history.json");
+
+function loadPlayHistory() {
+  try {
+    if (fs.existsSync(historyFilePath)) {
+      const data = fs.readFileSync(historyFilePath, "utf-8");
+      return JSON.parse(data);
+    }
+  } catch (err) {
+    console.error("Failed to load play history:", err);
+  }
+  return {};
+}
+
+function savePlayHistory(history) {
+  try {
+    fs.writeFileSync(historyFilePath, JSON.stringify(history, null, 2), "utf-8");
+  } catch (err) {
+    console.error("Failed to save play history:", err);
+  }
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -23,7 +55,6 @@ const isDev = !app.isPackaged;
 | For steam:// protocol launches, the child process is just `cmd`
 | opening a URL — it exits instantly. We rely on polling the exe
 | name if provided, or just record the timestamp.
-
 */
 let mainWindow = null;
 
@@ -123,6 +154,30 @@ function createWindow() {
 */
 ipcMain.handle("get-app-version", async () => {
   return app.getVersion();
+});
+
+/*
+|--------------------------------------------------------------------------
+| PLAY HISTORY IPC HANDLERS
+|--------------------------------------------------------------------------
+| load-play-history  → returns the entire history object
+| save-play-history  → receives updated history object and writes to disk
+| get-game-history   → returns history for a single game by name
+|--------------------------------------------------------------------------
+*/
+ipcMain.handle("load-play-history", async () => {
+  return loadPlayHistory();
+});
+
+ipcMain.handle("save-play-history", async (_evt, history) => {
+  savePlayHistory(history);
+  return { ok: true };
+});
+
+ipcMain.handle("get-game-history", async (_evt, gameName) => {
+  const history = loadPlayHistory();
+  const key = gameName.toLowerCase().trim();
+  return history[key] || null;
 });
 
 /*
