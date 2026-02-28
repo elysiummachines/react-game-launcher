@@ -1,5 +1,4 @@
 // preload.js
-
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("electronAPI", {
@@ -16,7 +15,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Listen for when a game process exits
   // Callback receives: { gameId, elapsedSeconds }
   onGameClosed: (callback) => {
-    ipcRenderer.on("game-closed", (_event, data) => callback(data));
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on("game-closed", handler);
+    return () => ipcRenderer.removeListener("game-closed", handler);
   },
   // Play history persistence
   // Loads the entire play-history.json from disk
