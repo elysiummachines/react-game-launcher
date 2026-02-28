@@ -2,10 +2,39 @@
 
 All notable changes to Game Launcher will be documented in this file.
 
+
+## [0.3.0] - 2026-02-28
+
+### Refactor
+- `useLocalStorageState` hook replaces 4× `useState` + 4× `useEffect` (8 blocks → 4 one-liners)
+- `PlatformSection` component replaces 4 duplicate platform panel blocks in JSX
+- `buildGameEntry` eliminates copy-pasted game object construction in every `add*` function
+- `launchAndTrack` replaces duplicated timestamp + history save across all launch functions
+- `removeGame` replaces 4 identical one-liner remove functions
+- Form state consolidated into objects replacing 10+ individual `useState` fields
+- `STORAGE_KEYS` added to `config.js` - no more hardcoded magic strings
+- `App.js` reduced from ~770 lines to ~356 lines
+
+### Fixed
+- `onGameClosed` now uses React refs instead of `localStorage.getItem()` stale closure workaround
+- IPC listener properly cleaned up on unmount via `unsub?.()`
+- `launchGogOnly` extracted - GOG launch button no longer had inline logic
+
+## [0.2.4] - 2026-02-15
+
+### Added
+- Persistent play history stored to `play-history.json` via Electron IPC
+- Play history keyed by lowercase game name — re-adding a game restores its previous play time and last played date
+- `loadPlayHistory`, `savePlayHistory`, and `getGameHistory` IPC handlers in `main.js`
+- `loadPlayHistory`, `savePlayHistory`, and `getGameHistory` bridge methods in `preload.js`
+
+### Fixed
+- Play time and last played date now survive game removal and re-addition
+
 ## [0.2.3] - 2026-02-14
 
 ### Added
-- Hybrid Steam launch mode — per-game toggle between Steam ID and Direct EXE
+- Hybrid Steam launch mode - per-game toggle between Steam ID and Direct EXE
 - Steam ID mode launches games via steam://rungameid/<appId> protocol
 - Process name field for Steam ID games to enable play time tracking via tasklist polling
 - launch-steam-url IPC handler in main.js using shell.openExternal()
