@@ -1,10 +1,11 @@
-// src/App.js — REFACTORED v0.3.0
+// src/App.js — REFACTORED v0.4.0
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { paths, STORAGE_KEYS } from "./config";
 import rpcs3Icon from "./assets/rpc3-100.png";
 import pcsx2Icon from "./assets/pcsx2-100.png";
 import gogIcon from "./assets/gog-100.png";
 import steamIcon from "./assets/steam-100.png";
+import localIcon from "./assets/local-100.png";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -16,7 +17,6 @@ function formatPlayTime(totalSeconds) {
   if (hours >= 1) return `${hours.toFixed(1)}h`;
   return `${Math.floor(totalSeconds / 60)}m`;
 }
-// NEW: builds the repeated game object — replaces copy-pasted id/name/lastPlayed/totalPlayTime in every add* fn
 function buildGameEntry(name, extraFields, history) {
   return {
     id: Date.now(),
@@ -45,7 +45,6 @@ async function getGameFromHistory(gameName) {
   try { return await window.electronAPI.getGameHistory(gameName); }
   catch (err) { console.error("Failed to load game history:", err); return null; }
 }
-// NEW: Custom hook — replaces 4x useState + 4x useEffect (8 blocks → 4 one-liners)
 function useLocalStorageState(key, defaultValue = []) {
   const [state, setState] = useState(() => {
     const saved = localStorage.getItem(key);
@@ -54,7 +53,7 @@ function useLocalStorageState(key, defaultValue = []) {
   useEffect(() => { localStorage.setItem(key, JSON.stringify(state)); }, [key, state]);
   return [state, setState];
 }
-function SortableGameRow({ game, onPlay, onRemove, isSteam, isGog, isPcsx2, isRpcs3 }) {
+function SortableGameRow({ game, onPlay, onRemove, isSteam, isGog, isPcsx2, isRpcs3, isLocal }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: String(game.id) });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.85 : 1 };
   const playTime = formatPlayTime(game.totalPlayTime);
@@ -70,11 +69,12 @@ function SortableGameRow({ game, onPlay, onRemove, isSteam, isGog, isPcsx2, isRp
             {isGog && <span className="text-xs ml-1 relative -top-[2px]" title="GOG game">📁</span>}
             {isPcsx2 && <span className="text-xs ml-1" title="ISO game">💿</span>}
             {isRpcs3 && <span className="text-xs ml-1 relative -top-[2px]" title="Game folder">📂</span>}
+            {isLocal && <span className="text-xs ml-1 relative -top-[2px]" title="Local game">🖥️</span>}
           </p>
           {game.lastPlayed && (
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-white">
               Last Played: {game.lastPlayed}
-              {playTime && <span className="text-cyan-400 text-xs ml-0">⏱{playTime} played</span>}
+              {playTime && <span className="text-cyan-400 text-sm ml-0">⏱{playTime} played</span>}
             </p>
           )}
         </div>
@@ -127,32 +127,33 @@ function PlatformSection({ title, icon, titleColor, buttonColor, games, setGames
   );
 }
 export default function App() {
-  // NEW: useLocalStorageState replaces 4x useState + 4x useEffect
   const [steamGames, setSteamGames] = useLocalStorageState(STORAGE_KEYS.steam);
   const [gogGames, setGogGames] = useLocalStorageState(STORAGE_KEYS.gog);
   const [pcsx2Games, setPcsx2Games] = useLocalStorageState(STORAGE_KEYS.pcsx2);
   const [rpcs3Games, setRpcs3Games] = useLocalStorageState(STORAGE_KEYS.rpcs3);
-  // NEW: Refs for onGameClosed — replaces localStorage.getItem() hack
+  const [localGames, setLocalGames] = useLocalStorageState(STORAGE_KEYS.local);
   const steamRef = useRef(steamGames);
   const gogRef = useRef(gogGames);
   const pcsx2Ref = useRef(pcsx2Games);
   const rpcs3Ref = useRef(rpcs3Games);
+  const localRef = useRef(localGames);
   useEffect(() => { steamRef.current = steamGames; }, [steamGames]);
   useEffect(() => { gogRef.current = gogGames; }, [gogGames]);
   useEffect(() => { pcsx2Ref.current = pcsx2Games; }, [pcsx2Games]);
   useEffect(() => { rpcs3Ref.current = rpcs3Games; }, [rpcs3Games]);
-  // NEW: platformMap for iterating all platforms in onGameClosed
+  useEffect(() => { localRef.current = localGames; }, [localGames]);
   const platformMap = useMemo(() => ({
     steam: { setter: setSteamGames, ref: steamRef },
     gog: { setter: setGogGames, ref: gogRef },
     pcsx2: { setter: setPcsx2Games, ref: pcsx2Ref },
     rpcs3: { setter: setRpcs3Games, ref: rpcs3Ref },
-  }), [setSteamGames, setGogGames, setPcsx2Games, setRpcs3Games]);
+    local: { setter: setLocalGames, ref: localRef },
+  }), [setSteamGames, setGogGames, setPcsx2Games, setRpcs3Games, setLocalGames]);
   const [steamForm, setSteamForm] = useState({ name: "", exePath: "", appId: "", launchMode: "steam", exeName: "" });
   const [gogForm, setGogForm] = useState({ name: "", exePath: "" });
   const [pcsx2Form, setPcsx2Form] = useState({ name: "", isoPath: "" });
   const [rpcs3Form, setRpcs3Form] = useState({ name: "", gamePath: "" });
-  // NEW: onGameClosed uses refs + platformMap instead of localStorage hack
+  const [localForm, setLocalForm] = useState({ name: "", exePath: "" });
   useEffect(() => {
     if (!window.electronAPI?.onGameClosed) return;
     const unsub = window.electronAPI.onGameClosed((data) => {
@@ -172,17 +173,15 @@ export default function App() {
     if (!(window.electronAPI && window.electronAPI.launchGame)) { console.error("Electron bridge not found"); return false; }
     return true;
   };
-  // NEW: Shared launch helper — replaces duplicated timestamp + history save in every launch fn
   const launchAndTrack = useCallback((game, setter, platform) => {
     const now = new Date().toLocaleString();
     setter((prev) => prev.map((g) => (g.id === game.id ? { ...g, lastPlayed: now } : g)));
     saveGameToHistory({ ...game, lastPlayed: now }, platform);
   }, []);
-  // NEW: Shared remove helper — replaces 4 identical removeXxxGame functions
   const removeGame = useCallback((id, setter) => {
     setter((prev) => prev.filter((g) => g.id !== id));
   }, []);
-  // ---------- ADD (using buildGameEntry) ----------
+  // ---------- ADD ----------
   const addSteamGame = async () => {
     if (!steamForm.name.trim()) return;
     if (steamForm.launchMode === "steam" && !steamForm.appId.trim()) return;
@@ -214,7 +213,13 @@ export default function App() {
     setRpcs3Games((prev) => [...prev, buildGameEntry(rpcs3Form.name, { gamePath: rpcs3Form.gamePath.trim() }, history)]);
     setRpcs3Form({ name: "", gamePath: "" });
   };
-  // ---------- LAUNCH (using launchAndTrack) ----------
+  const addLocalGame = async () => {
+    if (!localForm.name.trim() || !localForm.exePath.trim()) return;
+    const history = await getGameFromHistory(localForm.name.trim());
+    setLocalGames((prev) => [...prev, buildGameEntry(localForm.name, { exePath: localForm.exePath.trim() }, history)]);
+    setLocalForm({ name: "", exePath: "" });
+  };
+  // ---------- LAUNCH ----------
   const launchSteamGame = (game) => {
     if (game.launchMode === "steam" && game.steamAppId) {
       if (window.electronAPI && window.electronAPI.launchSteamUrl) {
@@ -235,22 +240,27 @@ export default function App() {
   };
   const launchPcsx2GameWithIso = (game) => {
     if (!ensureElectronGame()) return;
-    window.electronAPI.launchGame(`"${paths.pcsx2}" "${game.isoPath}"`, game.id);
+    window.electronAPI.launchGame(`"${paths.pcsx2}" "${game.isoPath}"`, game.id, true );
     launchAndTrack(game, setPcsx2Games, "pcsx2");
+  };
+  const launchLocalGame = (game) => {
+    if (!ensureElectronGame()) return;
+    window.electronAPI.launchGame(`"${game.exePath}"`, game.id, true);
+    launchAndTrack(game, setLocalGames, "local");
   };
   const launchPcsx2Only = () => { if (!ensureElectronGame()) return; window.electronAPI.launchGame(`"${paths.pcsx2}"`); };
   const launchRpcs3Only = () => { if (!ensureElectronGame()) return; window.electronAPI.launchGame(`"${paths.rpcs3}"`); };
   const launchGogOnly = () => { if (!ensureElectronGame()) return; window.electronAPI.launchGame(`"${paths.gog}"`); };
   const launchRpcs3Game = (game) => {
     if (!ensureElectronGame()) return;
-    window.electronAPI.launchGame(`"${paths.rpcs3}" --no-gui "${game.gamePath}"`, game.id);
+    window.electronAPI.launchGame(`"${paths.rpcs3}" --no-gui "${game.gamePath}"`, game.id,);
     launchAndTrack(game, setRpcs3Games, "rpcs3");
   };
   // ---------- UI-JSX ----------
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center py-10">
       <h1 className="text-4xl font-bold mb-8 flex items-center gap-2">🎮 Game Launcher</h1>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 w-full max-w-7xl px-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 w-full px-4">
         {/* RPCS3 */}
         <PlatformSection
           title="RPCS3"
@@ -314,7 +324,7 @@ export default function App() {
             <SortableGameRow key={game.id} game={game} isGog onPlay={() => launchGogGame(game)} onRemove={() => removeGame(game.id, setGogGames)} />
           )}
         />
-        {/* Steam - HYBRID LAUNCH */}
+        {/* Steam */}
         <PlatformSection
           title="Steam"
           icon={steamIcon}
@@ -348,6 +358,27 @@ export default function App() {
           )}
           renderRow={(game) => (
             <SortableGameRow key={game.id} game={game} isSteam onPlay={() => launchSteamGame(game)} onRemove={() => removeGame(game.id, setSteamGames)} />
+          )}
+        />
+        {/* Local */}
+        <PlatformSection
+          title="Local"
+          icon={localIcon}
+          titleColor="text-gray-400"
+          buttonColor="bg-gray-600 hover:bg-gray-700 cursor-default"
+          games={localGames}
+          setGames={setLocalGames}
+          onLaunch={() => {}}
+          launchLabel="Local Games"
+          renderForm={() => (
+            <>
+              <input type="text" placeholder="Game name..." value={localForm.name} onChange={(e) => setLocalForm((prev) => ({ ...prev, name: e.target.value }))} className="px-3 py-2 rounded-lg text-black" />
+              <input type="text" placeholder="Path to .exe..." value={localForm.exePath} onChange={(e) => setLocalForm((prev) => ({ ...prev, exePath: e.target.value }))} className="px-3 py-2 rounded-lg text-black" />
+              <button onClick={addLocalGame} className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg font-semibold">Add</button>
+            </>
+          )}
+          renderRow={(game) => (
+            <SortableGameRow key={game.id} game={game} isLocal onPlay={() => launchLocalGame(game)} onRemove={() => removeGame(game.id, setLocalGames)} />
           )}
         />
       </div>
