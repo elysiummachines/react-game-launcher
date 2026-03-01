@@ -90,7 +90,6 @@ function isExeRunning(exeName) {
 | Checks every 10 seconds if the exe is still in the task list.
 | When it disappears, calculates elapsed time and notifies renderer.
 */
-
 function startPollingForExit(exeName, exeKey) {
   console.log(`Starting tasklist polling for: ${exeName}`);
 
@@ -118,17 +117,17 @@ function startPollingForExit(exeName, exeKey) {
   }, 10000); // Check every 10 seconds
 }
 
+/*
+|--------------------------------------------------------------------------
+| CREATE WINDOW
+|--------------------------------------------------------------------------
+*/
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 1350,
-
-    // Window title (kills "React App")
+    width: 2250,
+    height: 1250,
     title: "Game Launcher",
-
-    // Runtime + taskbar icon
     icon: path.join(__dirname, "assets", "icon.ico"),
-
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -147,6 +146,7 @@ function createWindow() {
     mainWindow.setTitle("Game Launcher");
   });
 }
+
 /*
 |--------------------------------------------------------------------------
 | GET APP VERSION
@@ -192,12 +192,6 @@ ipcMain.handle("get-game-history", async (_evt, gameName) => {
 | renderer, we use that; otherwise we skip play time tracking for
 | steam:// launches (the renderer still records lastPlayed timestamp).
 |--------------------------------------------------------------------------
-| Accepts an optional gameId so we know which game to update
-| when the process exits.
-|
-| The renderer calls:
-|   launchGame(command)           ← old way, still works
-|   launchGame(command, gameId)   ← new way, enables time tracking
 */
 ipcMain.handle("launch-steam-url", async (_evt, steamUrl, gameId, exeName) => {
   console.log("Launching Steam URL:", steamUrl);
@@ -206,7 +200,6 @@ ipcMain.handle("launch-steam-url", async (_evt, steamUrl, gameId, exeName) => {
   try {
     await shell.openExternal(steamUrl);
 
-    // If we have an exe name, we can poll for play time
     if (gameId && exeName) {
       const exeKey = getExeKey(exeName);
 
@@ -224,7 +217,6 @@ ipcMain.handle("launch-steam-url", async (_evt, steamUrl, gameId, exeName) => {
           startPollingForExit(exeName, exeKey);
         } else {
           console.log(`${exeName} not yet running after steam:// launch. Retrying in 15s...`);
-          // Retry once more — some games take a while to start
           setTimeout(() => {
             if (isExeRunning(exeName)) {
               console.log(`${exeName} detected on retry. Starting polling.`);
@@ -247,18 +239,12 @@ ipcMain.handle("launch-steam-url", async (_evt, steamUrl, gameId, exeName) => {
 
 /*
 |--------------------------------------------------------------------------
-| GENERIC COMMAND LAUNCHER - WITH PLAY TIME TRACKING + POLLING FALLBACK
+| GENERIC COMMAND LAUNCHER — WITH PLAY TIME TRACKING + POLLING FALLBACK
 |--------------------------------------------------------------------------
-| Accepts an optional gameId so we know which game to update
-| when the process exits.
-|
-| The renderer calls:
-|   launchGame(command)           ← old way, still works
-|   launchGame(command, gameId)   ← new way, enables time tracking
 | If the child process exits within 30 seconds (Steam takeover),
 | we switch to tasklist polling to detect when the game actually closes.
 */
-ipcMain.handle("launch-game", async (_evt, command, gameId) => {
+ipcMain.handle("launch-game", async (_evt, command, gameId, useCwd = false) => {
   console.log("Launching via Electron (launch-game):", command);
   if (gameId) console.log("Tracking play time for gameId:", gameId);
 
@@ -272,9 +258,9 @@ ipcMain.handle("launch-game", async (_evt, command, gameId) => {
     const child = spawn(exe, args, {
       detached: true,
       stdio: "ignore",
+      ...(useCwd ? { cwd: path.dirname(exe) } : {}),
     });
 
-    // ── TRACK: store start time if we have a gameId
     if (gameId) {
       activeGames.set(exeKey, {
         pid: child.pid,
@@ -284,25 +270,21 @@ ipcMain.handle("launch-game", async (_evt, command, gameId) => {
       });
     }
 
-    // ── ON EXIT: check if this was a real exit or a Steam takeover
     child.on("exit", (code) => {
       const tracked = activeGames.get(exeKey);
       if (!tracked || !tracked.gameId) return;
 
-        const elapsedSeconds = Math.floor((Date.now() - tracked.startTime) / 1000);
+      const elapsedSeconds = Math.floor((Date.now() - tracked.startTime) / 1000);
 
-        if (elapsedSeconds < 30) {
-        // Process exited too fast — likely Steam took over.
-        // Check if the game exe is actually still running via tasklist.
+      if (elapsedSeconds < 30) {
+        // Process exited too fast — likely Steam took over
         console.log(`Child exited after ${elapsedSeconds}s — checking if ${exeName} is still running...`);
 
-        // Give Steam a moment to relaunch the game
         setTimeout(() => {
           if (isExeRunning(exeName)) {
             console.log(`${exeName} is still running (Steam takeover). Switching to polling.`);
             startPollingForExit(exeName, exeKey);
           } else {
-            // Game genuinely exited quickly
             console.log(`${exeName} is not running. Recording ${elapsedSeconds}s.`);
             if (mainWindow && !mainWindow.isDestroyed()) {
               mainWindow.webContents.send("game-closed", {
@@ -312,10 +294,9 @@ ipcMain.handle("launch-game", async (_evt, command, gameId) => {
             }
             activeGames.delete(exeKey);
           }
-        }, 3000); // Wait 3 seconds before checking
+        }, 3000);
       } else {
         // Normal exit — process ran for more than 30 seconds
-
         console.log(`Game exited (${tracked.gameId}): played for ${elapsedSeconds}s`);
 
         if (mainWindow && !mainWindow.isDestroyed()) {
@@ -335,14 +316,16 @@ ipcMain.handle("launch-game", async (_evt, command, gameId) => {
       resolve({ ok: false, error: String(err) });
     });
 
-    // unref so our app can still close, but we keep the
-    // child reference alive in activeGames for tracking
     child.unref();
-
     resolve({ ok: true, pid: child.pid });
   });
 });
 
+/*
+|--------------------------------------------------------------------------
+| APP LIFECYCLE
+|--------------------------------------------------------------------------
+*/
 app.whenReady().then(() => {
   createWindow();
 

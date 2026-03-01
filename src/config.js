@@ -10,6 +10,7 @@ export const STORAGE_KEYS = {
   gog: "gogGames",
   pcsx2: "pcsx2Games",
   rpcs3: "rpcs3Games",
+  local: "localGames",
 };
 
 export const settings = {

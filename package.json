@@ -1,6 +1,6 @@
 {
   "name": "game-launcher",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Unified launcher for Steam, GOG, RPCS3, and PCSX2",
   "author": "You",
   "private": true,

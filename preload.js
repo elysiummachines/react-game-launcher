@@ -5,7 +5,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Get app version from Electron
   getAppVersion: () => ipcRenderer.invoke("get-app-version"),
   // Launch a game using generic command
-  launchGame: (command, gameId) => ipcRenderer.invoke("launch-game", command, gameId),
+  launchGame: (command, gameId, useCwd) => ipcRenderer.invoke("launch-game", command, gameId, useCwd),
   // Launch a game via steam:// protocol (anti-cheat safe)
   // steamUrl: e.g. "steam://rungameid/730"
   // gameId:   internal game ID for play time tracking

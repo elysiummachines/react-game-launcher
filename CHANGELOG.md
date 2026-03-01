@@ -3,6 +3,31 @@
 All notable changes to Game Launcher will be documented in this file.
 
 
+## [0.4.0] - 2026-02-29
+
+### Added
+- Local games column for launching DRM-free and non-Steam games directly via .exe
+- `local-100.png` platform icon for Local column
+- `localGames` storage key in `config.js`
+- `addLocalGame`, `launchLocalGame` functions in `App.js`
+- `isLocal` prop and 🖥️ icon in `SortableGameRow`
+- Local platform entry in `platformMap` and `onGameClosed` tracking
+- All games now launch with correct working directory (`cwd: path.dirname(exe)`) — fixes black screen on games like Fallout 3 and Ghost of Tsushima that require their own folder to initialize
+- Resident Evil 4 Direct EXE launch failure fixed — `cwd` was being applied globally to all spawned processes
+- `useCwd` parameter added to `launch-game` IPC handler — only `launchLocalGame`, `launchRpcs3Game`, and `launchPcsx2GameWithIso` pass `true`
+- Black Mesa moved to Steam ID launch mode (`362890`)
+
+### Fixed
+- All games now launch with correct working directory (`cwd: path.dirname(exe)`) — fixes black screen on games like Fallout 3 and Ghost of Tsushima that require their own folder to initialize
+- RPCS3 games taking 20-30s to launch confirmed to be an RPCS3 emulator update, not the launcher
+
+### Changed
+- Grid layout expanded from 4 to 5 columns
+- Default window width increased from 1400 to 2300
+- Last played date/time text changed from gray to white for readability
+- Play time text size increased from `text-xs` to `text-sm`
+- `main.js` spacing and comment blocks cleaned up
+
 ## [0.3.0] - 2026-02-28
 
 ### Refactor
@@ -50,7 +75,7 @@ All notable changes to Game Launcher will be documented in this file.
 
 ## [0.2.2] - 2026-02-13
 
-###Added
+### Added
 - 0Play time tracking for RPCS3, PCSX2, and GOG games
 - activeGames Map in main.js to track game process start/exit times
 - gameId parameter to launch-game IPC handler for per-game tracking
@@ -67,7 +92,7 @@ All notable changes to Game Launcher will be documented in this file.
 
 ## [0.2.1] - 2026-02-12
 
-###Added
+### Added
 - Platform icons in column headers (RPCS3, PCSX2, GOG, Steam logos)
 - Custom application icon for Windows taskbar, installer, and title bar
 
