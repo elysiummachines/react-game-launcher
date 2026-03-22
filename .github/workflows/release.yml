@@ -33,13 +33,22 @@ jobs:
           name: Game-Launcher-Setup
           path: dist/*.exe
 
+      - name: Extract changelog for version
+        id: changelog
+        shell: bash
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          NOTES=$(awk "/^## \[$VERSION\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md)
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/Game Launcher Setup*.exe
             dist/Game Launcher [0-9]*.exe
-          generate_release_notes: true
-          body_path: CHANGELOG.md
+          body: ${{ steps.changelog.outputs.notes }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
