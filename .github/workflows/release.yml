@@ -38,7 +38,7 @@ jobs:
         with:
           files: |
             dist/Game Launcher Setup*.exe
-            dist/Game Launcher*.exe
+            dist/Game Launcher [0-9]*.exe
           generate_release_notes: true
           body_path: CHANGELOG.md
         env:
